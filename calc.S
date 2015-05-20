@@ -16,17 +16,22 @@
 
         .text
         .globl main
+        .set frame_size, 0x80
+        .set stack_base, -0x30
+        .set buflen, 20
+        .set buf, (stack_base + buflen)
+        .set ptr, (buf + 8)
 main:
         push %rbp
         mov %rsp, %rbp
-        sub $0x80, %rsp
-        lea -0x30(%rbp), %rbx
+        sub $frame_size, %rsp
+        lea stack_base(%rbp), %rbx
 
         mov $0, %r12
 l0:
         mov $0, %edi
-        lea -0x13(%rbp), %rsi
-        mov $19, %rdx
+        lea buf(%rbp), %rsi
+        mov $buflen, %rdx
 
         call read@plt
 
@@ -36,23 +41,23 @@ l0:
 
 l1:
         # zero-terminate
-        movb $0, -0x13(%rbp, %rax)
+        movb $0, buf(%rbp, %rax)
 
-        lea -0x13(%rbp), %rdi
-        lea -0x8(%rbp), %rsi
+        lea buf(%rbp), %rdi
+        lea ptr(%rbp), %rsi
         mov $10, %edx
 
         call strtoll@plt
 
-        mov -0x8(%rbp), %rcx
+        mov ptr(%rbp), %rcx
         movzbl (%rcx), %ecx
         # %al == '\n'
-        cmp $0xa, %cl
+        cmp $'\n', %cl
         # invalid
         jne op0
 
         ## avoid stack overflow
-        lea -0x78(%rbp), %rcx
+        lea (8 - frame_size)(%rbp), %rcx
         cmp %rcx, %rbx
         jne _push
 
@@ -67,15 +72,15 @@ _push:
         jmp status
 
 op0:
-        ## p
-        cmp $0x70, %cl
+        ## print
+        cmp $'p', %cl
         jne ophelp
 
         jmp print
 
 ophelp:
-        ## h
-        cmp $0x68, %cl
+        ## help
+        cmp $'h', %cl
         jne opop
 
         lea .help(%rip), %rdi
@@ -84,7 +89,7 @@ ophelp:
         jmp l0
 opop:
         ## avoid stack underflow
-        lea -0x30(%rbp), %rax
+        lea stack_base(%rbp), %rax
         cmp %rax, %rbx
         jne opadd
 
@@ -93,8 +98,8 @@ opop:
 
         jmp l0
 opadd:
-        ## +
-        cmp $0x2b, %cl
+        ## add
+        cmp $'+', %cl
         jne opsub
 
         _pop %rax
@@ -102,8 +107,8 @@ opadd:
 
         jmp status
 opsub:
-        ## -
-        cmp $0x2d, %cl
+        ## sub
+        cmp $'-', %cl
         jne opdiv
 
         _pop %rax
@@ -111,8 +116,8 @@ opsub:
         jmp status
 
 opdiv:
-        ## %
-        cmp $0x25, %cl
+        ## div
+        cmp $'/', %cl
         jne opmul
 
         _pop %rcx
@@ -124,8 +129,8 @@ opdiv:
         jmp status
 
 opmul:
-        ## *
-        cmp $0x2a, %cl
+        ## mul
+        cmp $'*', %cl
         jne opswap
 
         _pop %rax
@@ -133,8 +138,8 @@ opmul:
         jmp status
 
 opswap:
-        ## s
-        cmp $0x73, %cl
+        ## swap
+        cmp $'s', %cl
         jne opnop
 
         _pop %rax
@@ -150,7 +155,7 @@ opnop:
 
 print:
         lea .status(%rip), %rdi
-        lea -0x78(%rbp), %rsi
+        lea (8 - frame_size)(%rbp), %rsi
         mov %rbx, %rdx
         call printf@plt
 status:
@@ -160,7 +165,7 @@ status:
 
         mov %rbx, %r13
 istack:
-        lea -0x30(%rbp), %rax
+        lea stack_base(%rbp), %rax
         cmp %rax, %r13
         je estack
 
@@ -175,7 +180,7 @@ estack:
         call printf@plt
         jmp l0
 end:
-        add $0x80, %rsp
+        add $frame_size, %rsp
         pop %rbp
         ret
 
@@ -196,4 +201,4 @@ end:
         .string " %lld"
 .help:
         .string "'[0-9]+': push; 's': swap; 'h': help; 'p': print\n\
-'%': idiv; '*': imul; '-': sub; '+': add\n"
+'/': idiv; '*': imul; '-': sub; '+': add\n"
