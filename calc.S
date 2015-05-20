@@ -1,5 +1,5 @@
-        .macro _err
-        lea .nop(%rip), %rdi
+        .macro _err arg
+        lea \arg, %rdi
         call perror@plt
         jmp end
         .endm
@@ -37,7 +37,7 @@ l0:
 
         cmp $0, %rax
         jge l1
-        _err
+        _err .nop(%rip)
 
 l1:
         # zero-terminate
@@ -190,7 +190,7 @@ end:
 .over:
         .string "stack overflow\n"
 .nop:
-        .string "nop\n"
+        .string "nop"
 .status:
         .string "> top: %p; rbx: %p\n"
 .sh:
